@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Simulación SoftwareVenta</title>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; display: flex; gap: 20px; padding: 20px; background-color: #f0f2f5; color: #333;}
+        .panel { flex: 1; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h2 { border-bottom: 2px solid #3b82f6; padding-bottom: 10px; color: #1e3a8a;}
+        button { background: #3b82f6; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; margin-top: 10px; font-weight: bold;}
+        button:hover { background: #2563eb; }
+        .log { background: #1e293b; color: #a5b4fc; padding: 15px; border-radius: 6px; height: 300px; overflow-y: auto; font-family: monospace; white-space: pre-wrap; font-size: 13px;}
+        .success { color: #4ade80; }
+        .error { color: #f87171; }
+        .socket-msg { color: #fbbf24; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="panel">
+    <h2>1. Camarero (REST API)</h2>
+    <p>Simulador de peticiones del camarero o cajero.</p>
+    
+    <button onclick="registerWaiter()">1. Crear Usuario Camarero</button><br>
+    <button onclick="loginWaiter()">2. Login (Obtener Token)</button><br>
+    <button onclick="seedDatabase()">3. Crear Categoría y Producto Base</button><br>
+    <button onclick="sendOrder()" style="background: #10b981;">4. Enviar Pedido (Disparar WS)</button>
+    
+    <h4 style="margin-top: 20px;">Estado de la Petición:</h4>
+    <div id="rest-log" class="log">Esperando acciones...</div>
+</div>
+
+<div class="panel">
+    <h2>2. Ordenador Central (WebSocket)</h2>
+    <p>Pantalla en tiempo real conectada al servidor.</p>
+    
+    <button onclick="connectSocket()">Conectar al Servidor (WebSocket)</button>
+    
+    <h4 style="margin-top: 20px;">Monitor en Vivo:</h4>
+    <div id="ws-log" class="log">Desconectado. Pulsa Conectar.</div>
+</div>
+
+<script>
+    const API_URL = "http://localhost:9999";
+    let authToken = null;
+    let productId = null;
+    let ws = null;
+
+    function logRest(msg, type='info') {
+        const div = document.getElementById('rest-log');
+        const colorClass = type === 'error' ? 'error' : (type === 'success' ? 'success' : '');
+        div.innerHTML += `\n<span class="${colorClass}">[${new Date().toLocaleTimeString()}] ${msg}</span>`;
+        div.scrollTop = div.scrollHeight;
+    }
+
+    function logWs(msg, type='info') {
+        const div = document.getElementById('ws-log');
+        const colorClass = type === 'socket-msg' ? 'socket-msg' : (type === 'error' ? 'error' : (type === 'success' ? 'success' : ''));
+        div.innerHTML += `\n<span class="${colorClass}">[${new Date().toLocaleTimeString()}] ${msg}</span>`;
+        div.scrollTop = div.scrollHeight;
+    }
+
+    async function fetchAPI(endpoint, method, body, requiresAuth = false) {
+        const headers = { "Content-Type": "application/json" };
+        if (requiresAuth && authToken) headers["Authorization"] = `Bearer ${authToken}`;
+        
+        try {
+            const response = await fetch(`${API_URL}${endpoint}`, {
+                method,
+                headers,
+                body: body ? JSON.stringify(body) : null
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(JSON.stringify(data));
+            return data;
+        } catch (error) {
+            logRest(`Error en ${endpoint}: ${error.message}`, 'error');
+            throw error;
+        }
+    }
+
+    async function registerWaiter() {
+        try {
+            logRest("Registrando usuario 'camarero1'...");
+            await fetchAPI("/users/", "POST", {
+                username: "camarero1",
+                password: "password123",
+                role: "WAITER",
+                is_active: true
+            });
+            logRest("Usuario creado con éxito.", "success");
+        } catch (e) {
+            logRest("El usuario posiblemente ya existe. Puedes continuar.", "info");
+        }
+    }
+
+    async function loginWaiter() {
+        try {
+            logRest("Intentando hacer login...");
+            const form = new URLSearchParams();
+            form.append("username", "camarero1");
+            form.append("password", "password123");
+            
+            const response = await fetch(`${API_URL}/auth/login`, {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: form.toString()
+            });
+            
+            const data = await response.json();
+            if(!response.ok) throw new Error(JSON.stringify(data));
+            
+            authToken = data.access_token;
+            logRest(`Login correcto. Token Obtenido (****${authToken.slice(-5)})`, "success");
+        } catch (e) {
+            logRest(`Error de login: ${e.message}`, "error");
+        }
+    }
+
+    async function seedDatabase() {
+        if (!authToken) return logRest("Necesitas hacer Login primero", "error");
+        
+        try {
+            logRest("Creando categoría 'Bebidas'...");
+            const cat = await fetchAPI("/categories/", "POST", { name: "Bebidas" });
+            
+            logRest("Creando producto 'Agua Mineral'...");
+            const prod = await fetchAPI("/products/", "POST", {
+                name: "Agua Mineral",
+                category_id: cat.id,
+                price: 1.50
+            });
+            productId = prod.id;
+            logRest(`Base de datos lista. Producto ID: ${productId}`, "success");
+        } catch (e) {
+             // Si ya existe la categoría, podemos ignorarlo o buscarla.
+             logRest("Error al sembrar la DB (quizás ya existan los datos). Si es así, no te preocupes.", "info");
+             productId = 1; // Fallback
+        }
+    }
+
+    async function sendOrder() {
+        if (!authToken) return logRest("Necesitas hacer Login primero", "error");
+        
+        try {
+            logRest("Enviando Pedido de Agua Mineral...");
+            const order = await fetchAPI("/orders/", "POST", {
+                table_number: 4,
+                status: "PENDING",
+                notes: "Mesa 4",
+                items: [
+                    { product_id: productId || 1, quantity: 2 }
+                ]
+            }, true);
+            logRest(`Pedido #${order.id} enviado con éxito al servidor.`, "success");
+        } catch (e) {}
+    }
+
+    // WEB SOCKET LOGIC
+    function connectSocket() {
+        if (ws) {
+            ws.close();
+        }
+        
+        logWs("Conectando al servidor...");
+        ws = new WebSocket("ws://localhost:9999/ws/central");
+        
+        ws.onopen = () => logWs("¡Conectado al Ordenador Central!", "success");
+        ws.onclose = () => logWs("Desconectado del servidor.", "error");
+        ws.onerror = (e) => logWs("Error de conexión WS.", "error");
+        
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            logWs(`\n--- MENSAJE ENTRANTE ---`, 'socket-msg');
+            logWs(JSON.stringify(data, null, 2), 'socket-msg');
+        };
+    }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+pytest
+httpx
+sqlalchemy
+psycopg[binary]
+passlib[bcrypt]
+pyjwt
+python-multipart
