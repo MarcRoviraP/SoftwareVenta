@@ -29,8 +29,17 @@ class ProductCreate(ProductBase):
 
 class ProductResponse(ProductBase):
     id: int
+    category: Optional[CategoryResponse] = None
 
     model_config = {"from_attributes": True}
+
+class ProductUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=150)
+    category_id: Optional[int] = None
+    price: Optional[Decimal] = Field(None, ge=0)
+    image_url: Optional[str] = None
+    is_active: Optional[bool] = None
+    allergens: Optional[str] = None
 
 # --- User Schemas ---
 from enum import Enum

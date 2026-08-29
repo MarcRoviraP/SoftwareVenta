@@ -11,7 +11,7 @@ from sockets import manager
 router = APIRouter(prefix="/users", tags=["Users"])
 
 @router.post("/", response_model=schemas.UserResponse)
-def create_user(user: schemas.UserCreate, db: Session = Depends(get_db), current_user = Depends(auth.get_current_active_user)):
+async def create_user(user: schemas.UserCreate, db: Session = Depends(get_db), current_user = Depends(auth.get_current_active_user)):
     role_val = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
     target_role_val = user.role.value if hasattr(user.role, 'value') else str(user.role)
 
@@ -26,7 +26,15 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db), current
     else:
         raise HTTPException(status_code=403, detail="No tiene permisos para crear usuarios")
 
-    return service.create_user(db=db, user=user)
+    created = service.create_user(db=db, user=user)
+    await manager.broadcast({
+        "type": "USER_CREATED",
+        "user_id": created.id,
+        "username": created.username,
+        "role": created.role
+    })
+    return created
+
 
 @router.get("/", response_model=List[schemas.UserResponse])
 def read_users(

@@ -36,6 +36,32 @@ def get_products(db: Session, skip: int = 0, limit: int = 100, active_only: bool
         query = query.filter(models.Product.is_active == True)
     return query.offset(skip).limit(limit).all()
 
+def update_product(db: Session, product_id: int, product_update: schemas.ProductUpdate):
+    product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    if product_update.name is not None:
+        product.name = product_update.name
+    if product_update.category_id is not None:
+        product.category_id = product_update.category_id
+    if product_update.price is not None:
+        product.price = product_update.price
+    if product_update.image_url is not None:
+        product.image_url = product_update.image_url
+    if product_update.is_active is not None:
+        product.is_active = product_update.is_active
+    if product_update.allergens is not None:
+        product.allergens = product_update.allergens
+
+    try:
+        db.commit()
+        db.refresh(product)
+        return product
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Error al actualizar el producto")
+
 # --- Users ---
 def create_user(db: Session, user: schemas.UserCreate):
     from auth import get_password_hash

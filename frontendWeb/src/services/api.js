@@ -141,6 +141,15 @@ export async function createProduct(productData) {
   return handleResponse(res, 'Error al crear producto');
 }
 
+export async function updateProduct(productId, productData) {
+  const res = await fetch(`${API_BASE_URL}/products/${productId}`, {
+    method: 'PUT',
+    headers: getHeaders(),
+    body: JSON.stringify(productData),
+  });
+  return handleResponse(res, 'Error al actualizar producto');
+}
+
 export async function getOrders() {
   const res = await fetch(`${API_BASE_URL}/orders/`, {
     headers: getHeaders(),

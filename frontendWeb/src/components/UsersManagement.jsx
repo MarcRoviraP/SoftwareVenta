@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserPlus, Shield, CheckCircle, XCircle, Trash2 } from 'lucide-react';
-import { getUsers, createUser, updateUser, deleteUser } from '../services/api';
+import { getUsers, createUser, updateUser, deleteUser, subscribeToOrdersWebSocket } from '../services/api';
 
 export default function UsersManagement({ currentRole }) {
   const [users, setUsers] = useState([]);
@@ -30,7 +30,18 @@ export default function UsersManagement({ currentRole }) {
 
   useEffect(() => {
     loadUsers();
+
+    const unsubscribe = subscribeToOrdersWebSocket((data) => {
+      if (['USER_CREATED', 'USER_UPDATED', 'USER_DELETED'].includes(data.type)) {
+        loadUsers();
+      }
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
+
 
   const handleCreate = async (e) => {
     e.preventDefault();

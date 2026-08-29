@@ -309,18 +309,16 @@ export default function App() {
             </button>
           )}
 
-          {['ADMIN', 'GERENTE'].includes(currentUser.role) && (
-            <button
-              onClick={() => setActiveTab('products')}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm transition-all ${
-                activeTab === 'products'
-                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40'
-                  : 'bg-slate-900 text-slate-400 hover:bg-slate-800'
-              }`}
-            >
-              <Package className="w-4 h-4" /> Productos
-            </button>
-          )}
+          <button
+            onClick={() => setActiveTab('products')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm transition-all ${
+              activeTab === 'products'
+                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40'
+                : 'bg-slate-900 text-slate-400 hover:bg-slate-800'
+            }`}
+          >
+            <Package className="w-4 h-4" /> Productos
+          </button>
 
           <button
             onClick={() => setActiveTab('orders')}
@@ -339,8 +337,8 @@ export default function App() {
           <UsersManagement currentRole={currentUser.role} />
         )}
 
-        {activeTab === 'products' && ['ADMIN', 'GERENTE'].includes(currentUser.role) && (
-          <ProductsManagement />
+        {activeTab === 'products' && (
+          <ProductsManagement currentRole={currentUser.role} />
         )}
 
         {activeTab === 'orders' && (

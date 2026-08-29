@@ -33,6 +33,8 @@ export default function OrdersPanel() {
         setWsConnected(true);
         if (wsData.type === 'NEW_ORDER' && wsData.data) {
           setOrders((prevOrders) => [wsData.data, ...prevOrders.filter(o => o.id !== wsData.data.id)]);
+        } else if (['PRODUCT_UPDATED', 'CATEGORIES_UPDATED'].includes(wsData.type)) {
+          getProducts().then(setProducts).catch(console.error);
         }
       },
       () => setWsConnected(false)
@@ -40,6 +42,7 @@ export default function OrdersPanel() {
 
     return () => unsubscribe();
   }, []);
+
 
   const addToCart = (product) => {
     const existing = cart.find(item => item.id === product.id);
