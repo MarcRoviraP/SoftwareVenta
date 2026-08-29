@@ -58,6 +58,92 @@ def create_user(db: Session, user: schemas.UserCreate):
 def get_user_by_username(db: Session, username: str):
     return db.query(models.User).filter(models.User.username == username).first()
 
+def get_user(db: Session, user_id: int):
+    return db.query(models.User).filter(models.User.id == user_id).first()
+
+def get_users(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.User).offset(skip).limit(limit).all()
+
+def update_user_password(db: Session, user_id: int, new_password: str):
+    from auth import get_password_hash
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.password_hash = get_password_hash(new_password)
+    db.commit()
+    db.refresh(user)
+    return user
+
+def update_user(db: Session, user_id: int, user_update: schemas.UserUpdate):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    # Verificar si se intenta desactivar o cambiar de rol al último administrador activo
+    is_demoting_or_deactivating_admin = (
+        user.role == models.UserRole.ADMIN and user.is_active and (
+            (user_update.is_active is False) or 
+            (user_update.role is not None and (user_update.role.value if hasattr(user_update.role, 'value') else user_update.role) != (models.UserRole.ADMIN.value if hasattr(models.UserRole.ADMIN, 'value') else models.UserRole.ADMIN))
+        )
+    )
+
+    if is_demoting_or_deactivating_admin:
+        active_admins_count = db.query(models.User).filter(
+            models.User.role == models.UserRole.ADMIN,
+            models.User.is_active == True
+        ).count()
+        if active_admins_count <= 1:
+            raise HTTPException(
+                status_code=400,
+                detail="No se puede desactivar ni cambiar el rol del único usuario Administrador activo."
+            )
+
+    if user_update.username is not None:
+        user.username = user_update.username
+    if user_update.role is not None:
+        user.role = user_update.role.value
+    if user_update.is_active is not None:
+        user.is_active = user_update.is_active
+    if user_update.password is not None:
+        from auth import get_password_hash
+        user.password_hash = get_password_hash(user_update.password)
+
+    try:
+        db.commit()
+        db.refresh(user)
+        return user
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Error al actualizar usuario (posible nombre duplicado)")
+
+def delete_user(db: Session, user_id: int):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    if user.role == models.UserRole.ADMIN and user.is_active:
+        active_admins_count = db.query(models.User).filter(
+            models.User.role == models.UserRole.ADMIN,
+            models.User.is_active == True
+        ).count()
+        if active_admins_count <= 1:
+            raise HTTPException(
+                status_code=400,
+                detail="No se puede eliminar el único usuario Administrador activo en el sistema."
+            )
+
+    # Verificar si el usuario tiene actividad (pedidos/ventas) registrada
+    orders_count = db.query(models.Order).filter(models.Order.waiter_id == user_id).count()
+    if orders_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede eliminar un usuario con ventas o pedidos registrados. Puedes desactivarlo para mantener el historial."
+        )
+
+    db.delete(user)
+    db.commit()
+    return {"message": f"Usuario {user.username} eliminado con éxito"}
+
 # --- Orders ---
 def create_order(db: Session, order: schemas.OrderCreate, waiter_id: int):
     db_order = models.Order(

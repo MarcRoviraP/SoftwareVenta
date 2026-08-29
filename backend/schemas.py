@@ -37,6 +37,7 @@ from enum import Enum
 
 class UserRoleSchema(str, Enum):
     ADMIN = "ADMIN"
+    GERENTE = "GERENTE"
     WAITER = "WAITER"
     KITCHEN = "KITCHEN"
 
@@ -47,6 +48,15 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str = Field(..., min_length=4)
+
+class UserUpdate(BaseModel):
+    username: Optional[str] = Field(None, min_length=3, max_length=50)
+    role: Optional[UserRoleSchema] = None
+    is_active: Optional[bool] = None
+    password: Optional[str] = Field(None, min_length=4)
+
+class PasswordChange(BaseModel):
+    new_password: str = Field(..., min_length=4)
 
 class UserResponse(UserBase):
     id: int

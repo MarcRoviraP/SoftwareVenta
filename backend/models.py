@@ -6,6 +6,7 @@ from database import Base
 
 class UserRole(str, enum.Enum):
     ADMIN = "ADMIN"
+    GERENTE = "GERENTE"
     WAITER = "WAITER"
     KITCHEN = "KITCHEN"
 
