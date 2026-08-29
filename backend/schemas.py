@@ -100,9 +100,19 @@ class OrderBase(BaseModel):
 class OrderCreate(OrderBase):
     items: List[OrderItemCreate]
 
+class OrderStatusUpdate(BaseModel):
+    status: str
+
+class OrderUpdate(BaseModel):
+    table_number: Optional[int] = None
+    status: Optional[str] = None
+    notes: Optional[str] = None
+    items: Optional[List[OrderItemCreate]] = None
+
 class OrderResponse(OrderBase):
     id: int
     waiter_id: int
     created_at: datetime
     items: List[OrderItemResponse]
     model_config = {"from_attributes": True}
+

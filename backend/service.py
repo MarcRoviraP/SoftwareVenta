@@ -62,6 +62,22 @@ def update_product(db: Session, product_id: int, product_update: schemas.Product
         db.rollback()
         raise HTTPException(status_code=400, detail="Error al actualizar el producto")
 
+def delete_product(db: Session, product_id: int):
+    product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    orders_count = db.query(models.OrderItem).filter(models.OrderItem.product_id == product_id).count()
+    if orders_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede eliminar un producto que ya ha sido utilizado en pedidos. Puedes desactivarlo para conservarlo en el historial."
+        )
+
+    db.delete(product)
+    db.commit()
+    return {"message": f"Producto '{product.name}' eliminado con éxito"}
+
 # --- Users ---
 def create_user(db: Session, user: schemas.UserCreate):
     from auth import get_password_hash
@@ -206,3 +222,74 @@ def create_order(db: Session, order: schemas.OrderCreate, waiter_id: int):
 
 def get_orders(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.Order).offset(skip).limit(limit).all()
+
+def update_order_status(db: Session, order_id: int, status: str):
+    order = db.query(models.Order).filter(models.Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    order.status = status
+    db.commit()
+    db.refresh(order)
+    return order
+
+def update_order(db: Session, order_id: int, order_update: schemas.OrderUpdate):
+    order = db.query(models.Order).filter(models.Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    
+    status_val = order.status.value if hasattr(order.status, 'value') else str(order.status)
+    if status_val != "PENDING" and order.status != models.OrderStatus.PENDING:
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se pueden editar pedidos en estado Pendiente"
+        )
+    
+    if order_update.table_number is not None:
+        order.table_number = order_update.table_number
+    if order_update.notes is not None:
+        order.notes = order_update.notes
+    if order_update.status is not None:
+        order.status = order_update.status
+
+    if order_update.items is not None:
+        db.query(models.OrderItem).filter(models.OrderItem.order_id == order_id).delete()
+        for item in order_update.items:
+            product = db.query(models.Product).filter(models.Product.id == item.product_id).first()
+            if not product:
+                db.rollback()
+                raise HTTPException(status_code=404, detail=f"Producto #{item.product_id} no encontrado")
+            
+            db_item = models.OrderItem(
+                order_id=order.id,
+                product_id=item.product_id,
+                quantity=item.quantity,
+                unit_price=product.price
+            )
+            db.add(db_item)
+
+    try:
+        db.commit()
+        db.refresh(order)
+        return order
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Error al actualizar el pedido")
+
+def delete_order(db: Session, order_id: int):
+    order = db.query(models.Order).filter(models.Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    
+    status_val = order.status.value if hasattr(order.status, 'value') else str(order.status)
+    if status_val != "PENDING" and order.status != models.OrderStatus.PENDING:
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se pueden cancelar pedidos en estado Pendiente"
+        )
+    
+    db.query(models.OrderItem).filter(models.OrderItem.order_id == order_id).delete()
+    db.delete(order)
+    db.commit()
+    return {"message": f"Pedido #{order_id} cancelado con éxito", "id": order_id}
+
+

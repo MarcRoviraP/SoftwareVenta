@@ -39,3 +39,17 @@ async def update_product(product_id: int, product_update: schemas.ProductUpdate,
 def read_products(skip: int = 0, limit: int = 100, active_only: bool = True, db: Session = Depends(get_db)):
     return service.get_products(db, skip=skip, limit=limit, active_only=active_only)
 
+@router.delete("/{product_id}")
+async def delete_product(product_id: int, db: Session = Depends(get_db), current_user = Depends(auth.get_current_active_user)):
+    role_val = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
+    if role_val not in ["ADMIN", "GERENTE"]:
+        raise HTTPException(status_code=403, detail="Solo Administradores y Gerentes pueden eliminar productos")
+    res = service.delete_product(db=db, product_id=product_id)
+    await manager.broadcast({
+        "type": "PRODUCT_UPDATED",
+        "action": "DELETE",
+        "product_id": product_id
+    })
+    return res
+
+

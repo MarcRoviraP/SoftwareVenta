@@ -1,10 +1,16 @@
+import os
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from database import check_connection, init_db
 from routers import categories, products, users, auth, orders, ws
 
 # Inicializar Base de Datos al arrancar
 init_db()
+
+# Asegurar carpeta de assets para imágenes de productos
+ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
+os.makedirs(ASSETS_DIR, exist_ok=True)
 
 app = FastAPI(title="SoftwareVenta API")
 
@@ -16,6 +22,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
+
 
 app.include_router(auth.router)
 app.include_router(users.router)

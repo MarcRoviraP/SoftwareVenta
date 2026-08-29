@@ -125,8 +125,8 @@ export async function createCategory(categoryData) {
   return handleResponse(res, 'Error al crear categoría');
 }
 
-export async function getProducts() {
-  const res = await fetch(`${API_BASE_URL}/products/`, {
+export async function getProducts(activeOnly = true) {
+  const res = await fetch(`${API_BASE_URL}/products/?active_only=${activeOnly}`, {
     headers: getHeaders(),
   });
   return handleResponse(res, 'Error al obtener productos');
@@ -150,6 +150,33 @@ export async function updateProduct(productId, productData) {
   return handleResponse(res, 'Error al actualizar producto');
 }
 
+export async function deleteProduct(productId) {
+  const res = await fetch(`${API_BASE_URL}/products/${productId}`, {
+    method: 'DELETE',
+    headers: getHeaders(),
+  });
+  return handleResponse(res, 'Error al eliminar producto');
+}
+
+export async function uploadProductImage(productName, file = null, imageUrl = null) {
+  const formData = new FormData();
+  formData.append('product_name', productName);
+  if (file) {
+    formData.append('image_file', file);
+  }
+  if (imageUrl) {
+    formData.append('image_url', imageUrl);
+  }
+
+  const res = await fetch(`${API_BASE_URL}/products/upload-image`, {
+    method: 'POST',
+    headers: getHeaders(true),
+    body: formData,
+  });
+  return handleResponse(res, 'Error al procesar la imagen del producto');
+}
+
+
 export async function getOrders() {
   const res = await fetch(`${API_BASE_URL}/orders/`, {
     headers: getHeaders(),
@@ -164,6 +191,32 @@ export async function createOrder(orderData) {
     body: JSON.stringify(orderData),
   });
   return handleResponse(res, 'Error al enviar pedido');
+}
+
+export async function updateOrderStatus(orderId, status) {
+  const res = await fetch(`${API_BASE_URL}/orders/${orderId}/status`, {
+    method: 'PUT',
+    headers: getHeaders(),
+    body: JSON.stringify({ status }),
+  });
+  return handleResponse(res, 'Error al actualizar estado del pedido');
+}
+
+export async function updateOrder(orderId, orderData) {
+  const res = await fetch(`${API_BASE_URL}/orders/${orderId}`, {
+    method: 'PUT',
+    headers: getHeaders(),
+    body: JSON.stringify(orderData),
+  });
+  return handleResponse(res, 'Error al editar el pedido');
+}
+
+export async function deleteOrder(orderId) {
+  const res = await fetch(`${API_BASE_URL}/orders/${orderId}`, {
+    method: 'DELETE',
+    headers: getHeaders(),
+  });
+  return handleResponse(res, 'Error al cancelar el pedido');
 }
 
 export function subscribeToOrdersWebSocket(onMessage, onError) {
@@ -204,3 +257,4 @@ export function subscribeToOrdersWebSocket(onMessage, onError) {
     if (ws) ws.close();
   };
 }
+
